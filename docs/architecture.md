@@ -1,25 +1,45 @@
-# System Architecture (MVP)
-
-MVPアーキテクチャ図
-
-```mermaid
 flowchart LR
-    subgraph Client[iOS App (FlutterFlow)]
-      UI[UI層\nホーム/体重/筋トレ/食事/FAB]
-      Cache[ローカルキャッシュ/ローカル通知]
-      UI --> Cache
+    %% ====== Client ======
+    subgraph Client["iOS App (FlutterFlow)"]
+        UI["UI (Home / Weight / Workout / Food / FAB)"]
+        Cache["Local cache / Local notifications"]
+        UI --> Cache
     end
 
-    subgraph Firebase[Firebase / GCP]
-      Auth[Firebase Auth]
-      FS[(Cloud Firestore)]
-      Storage[(Cloud Storage)]
-      Func[Cloud Functions]
-      Analytics[Analytics / Crashlytics]
-      Logging[Cloud Logging]
+    %% ====== Firebase / GCP Core ======
+    subgraph Firebase["Firebase / GCP"]
+        Auth["Firebase Auth (Apple / Email)"]
+        FS["Cloud Firestore\n(users, weights, workouts, workout_sets, meals, daily_notes)"]
+        Storage["Cloud Storage (meal photos)"]
+        Func["Cloud Functions (validation / aggregation / future notifications)"]
+        Analytics["Analytics / Crashlytics"]
+        Logging["Cloud Logging / Error Reporting"]
     end
 
-    User[選手ユーザー] --> Client
-    Client --> Auth
-    Client --> FS
-    Client --> Storage
+    %% ====== Ops / Security ======
+    subgraph Ops["Ops & Security"]
+        Rules["Security Rules (Firestore / Storage)"]
+        AppCheck["App Check"]
+        Envs["Environments (dev / prod)"]
+        Sched["Cloud Scheduler → FCM (future)"]
+    end
+
+    %% ====== Actors & Flows ======
+    User["Athlete user"] -->|Use app| Client
+    Client -->|Sign-In| Auth
+    Client -->|CRUD (weights / workouts / meals / notes)| FS
+    Client -->|Upload photo| Storage
+    Client -->|Events| Analytics
+    Func -->|Aggregate / Validate| FS
+
+    %% ====== Observability ======
+    Auth --> Logging
+    FS --> Logging
+    Storage --> Logging
+    Func --> Logging
+
+    %% ====== Protections ======
+    Rules -.protects.-> FS
+    Rules -.protects.-> Storage
+    AppCheck -.verifies tokens.-> Client
+    Sched -.triggers.-> Func
